@@ -5,6 +5,9 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 
 public class ImageUtils {
+    // gaussian blur sigma value
+    private static final double sigma = 2;
+
     // Sobel operators
 
     private static final int[][] Gx = {
