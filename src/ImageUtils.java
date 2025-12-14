@@ -27,9 +27,21 @@ public class ImageUtils {
         return rgb & 0xFF;
     }
 
-    private static double[][] GaussianKernelCreate(){
-
-
+    // size should be 3/5, create a 3x3 or 5x5 gaussian kernel
+    private static double[][] GaussianKernelCreate(int size, double sigma){
+        double[][] kernel = new double[size][size];
+        double sigmaSquare = sigma*sigma;
+        double gaussianCoefficient = 1/(2*Math.PI*sigmaSquare);
+        int center = size/2;
+        for(int i=0; i<size; i++){
+            for(int j=0; j<size; j++){
+                int x = i-center;
+                int y = j-center;
+                // Gaussian blur equation;
+                kernel[i][j] = gaussianCoefficient * Math.exp(-(x^2+y^2)/(2*sigmaSquare));
+            }
+        }
+        return kernel;
     }
     public static int[][] toLuminance(BufferedImage img){
         int width = img.getWidth();
