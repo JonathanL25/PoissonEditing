@@ -151,7 +151,7 @@ public class ImageUtils {
     }
 
 
-    // non maximum suppression - thins out the lines
+    // non-maximum suppression - thins out the lines
     public static int[][] NonMaximumSuppression(int[][] magnitude, int[][] direction){
         int width = magnitude[0].length;
         int height = magnitude.length;
