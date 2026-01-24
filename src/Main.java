@@ -6,7 +6,7 @@ import javax.imageio.ImageIO;
 
 void main() throws IOException {
     String inputFilePath = "C:\\Users\\jonal\\IdeaProjects\\PoissonEditing\\src\\cat.png";
-    String outputFilePath = "C:\\Users\\jonal\\IdeaProjects\\PoissonEditing\\src\\output.png";
+    String outputFilePath = "/Users/zernel/IdeaProjects/PoissonEditing/OutputImages";
 
     File inputFile = new File(inputFilePath);
     if(!inputFile.exists()){

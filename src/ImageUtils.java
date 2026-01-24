@@ -185,6 +185,19 @@ public class ImageUtils {
         return nonMaximumSuppression;
     }
     // hysteresis thresholding
+    // uses two thresholds rather than one threshold
+    // find the maximum magnitude, identify what pixels are strong and weak, connect pixes by spreading
+    // edge of strong pixels to the neighboring weak pixels
+    public static int[][] HysteresisThresholding(int[][] magnitude, int[][] direction, int lowThreshold, int highThreshold){
+        int width = magnitude[0].length;
+        int height = magnitude.length;
+        int[][] hysteresisThresholding = new int[height][width];
+        for(int y = 1; y<height-1; y++){
+            for(int x = 1; x<width-1; x++){
+
+            }
+        }
+    }
 
     public static BufferedImage createOutputImage(int[][] magnitudeImg){
         int height = magnitudeImg.length;
