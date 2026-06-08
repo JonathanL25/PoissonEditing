@@ -1,8 +1,12 @@
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.awt.Color;
-import java.io.File;
 import java.io.IOException;
-import javax.imageio.ImageIO;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /*
 Contains methods for:
 - gaussian blur
@@ -12,16 +16,19 @@ Contains methods for:
 - color extraction
  */
 
-public class ImageUtils {
+public class CannyEdgeDetector {
     // gaussian blur sigma value
-    private static final double sigma = 1.0;
-    private static final int kernelSize = 3;
+    private static final double sigma = 1.4;
+    private static final int blurKernelSize = 7;
+
     // Sobel operators
+    // horizontal operator
     private static final int[][] Gx = {
             {-1, 0, 1},
             {-2, 0, 2},
             {-1, 0, 1},
     };
+    // vertical operator
     private static final int[][] Gy = {
             {-1, -2, -1},
             {0, 0, 0},
@@ -38,6 +45,8 @@ public class ImageUtils {
     private static int colorB(int rgb){
         return rgb & 0xFF;
     }
+
+    // struct to store gradient result
     private static class GradientResult{
         public int[][] magnitude;
         public double[][] direction;
@@ -47,7 +56,7 @@ public class ImageUtils {
         }
     }
 
-    // size should be 3/5, create a 3x3 or 5x5 gaussian kernel
+    // create a gaussian blur kernel of size * size dimensions
     private static double[][] GaussianKernelCreate(int size, double sigma){
         double[][] kernel = new double[size][size];
         double sum = 0.0;
@@ -60,7 +69,7 @@ public class ImageUtils {
                 int x = i-center;
                 int y = j-center;
                 // Gaussian blur equation;
-                kernel[i][j] = gaussianCoefficient * Math.exp(-(x^2+y^2)/(2*sigmaSquare));
+                kernel[i][j] = gaussianCoefficient * Math.exp( -(Math.pow(x, 2)+Math.pow(y, 2))/(2*sigmaSquare));
                 sum+=kernel[i][j];
             }
         }
@@ -74,7 +83,7 @@ public class ImageUtils {
     }
 
     // converts given image into gray scale image to process
-    public static int[][] toLuminance(BufferedImage img){
+    private static int[][] toLuminance(BufferedImage img){
         int width = img.getWidth();
         int height = img.getHeight();
         int[][] luminosity = new int[height][width];
@@ -92,23 +101,27 @@ public class ImageUtils {
         }
         return luminosity;
     }
-    public static double[][] gaussianBlur(int[][] inputImage, double[][] kernel){
+
+    // applies gaussian blur kernel to image to decrease noise
+    // which makes edge detecting easier
+    private static int[][] gaussianBlur(int[][] inputImage, double[][] kernel){
         int width = inputImage[0].length;
         int height = inputImage.length;
-        double[][] blurredImage = new double[height][width];
+        int[][] blurredImage = new int[height][width];
 
         // center is 1 if size is 3, 2 if size is 5
         //[0,1,2] [0,1,2,3,4]
-        int kernelCenter = kernelSize/2;
+        int kernelCenter = blurKernelSize/2;
 
         // ignore edge of the input image
-        for(int y = 1; y<height-kernelCenter; y++){
-            for(int x = 1; x<width-kernelCenter; x++){
+        for(int y = kernelCenter; y<height-kernelCenter; y++){
+            for(int x = kernelCenter; x<width-kernelCenter; x++){
                 double sum = 0.0;
+
                 for(int sy = -kernelCenter; sy<=kernelCenter; sy++){
                     for(int sx = -kernelCenter; sx<=kernelCenter; sx++){
                         double pixelVal = inputImage[y+sy][x+sx];
-                        sum += pixelVal * kernel[y+sy][x+sx];
+                        sum += pixelVal * kernel[sy+kernelCenter][sx+kernelCenter];
                     }
 
                 }
@@ -118,6 +131,8 @@ public class ImageUtils {
         }
         return blurredImage;
     }
+
+    // apply sobel, then return magnitude and direction object of image
     private static GradientResult extractGradientMagnitude(int[][] processedBlur){
         int width = processedBlur[0].length;
         int height = processedBlur.length;
@@ -138,11 +153,10 @@ public class ImageUtils {
                     }
                 }
                 magnitude[y][x]= (int) Math.sqrt(sumGx*sumGx+sumGy*sumGy);
-
                 // convert angle to only positive values
-                double angle = Math.toRadians(Math.atan2(sumGy,sumGx));
+                double angle = Math.toDegrees(Math.atan2(-sumGy,sumGx));
                 if(angle<0){
-                    angle+=180;
+                    angle+=180.0;
                 }
                 direction[y][x] = angle;
             }
@@ -150,9 +164,10 @@ public class ImageUtils {
         return new GradientResult(magnitude, direction);
     }
 
+    // Edge detection methods
 
     // non-maximum suppression - thins out the lines
-    public static int[][] NonMaximumSuppression(int[][] magnitude, int[][] direction){
+    private static int[][] NonMaximumSuppression(int[][] magnitude, double[][] direction){
         int width = magnitude[0].length;
         int height = magnitude.length;
         int[][] nonMaximumSuppression = new int[height][width];
@@ -175,31 +190,81 @@ public class ImageUtils {
                     neighbor1 = magnitude[y-1][x-1];
                     neighbor2 = magnitude[y+1][x+1];
                 }
-                if(currPixel<neighbor1 && currPixel < neighbor2){
-                    nonMaximumSuppression[y][x] = 0;
-                } else{
+                if(currPixel >= neighbor1 && currPixel >= neighbor2){
                     nonMaximumSuppression[y][x] = currPixel;
+                } else{
+                    nonMaximumSuppression[y][x] = 0;
                 }
             }
         }
         return nonMaximumSuppression;
     }
+
     // hysteresis thresholding
     // uses two thresholds rather than one threshold
     // find the maximum magnitude, identify what pixels are strong and weak, connect pixes by spreading
     // edge of strong pixels to the neighboring weak pixels
-    public static int[][] HysteresisThresholding(int[][] magnitude, int[][] direction, int lowThreshold, int highThreshold){
+    private static int[][] hysteresisThresholding(int[][] magnitude, int lowThreshold, int highThreshold){
         int width = magnitude[0].length;
         int height = magnitude.length;
+
+        int strong = 255;
+        int weak = 75;
+        int zero = 0;
+
         int[][] hysteresisThresholding = new int[height][width];
         for(int y = 1; y<height-1; y++){
             for(int x = 1; x<width-1; x++){
-
+                int mag = magnitude[y][x];
+                if (mag >= highThreshold) {
+                    hysteresisThresholding[y][x] = strong;
+                } else if (mag >= lowThreshold) {
+                    hysteresisThresholding[y][x] = weak;
+                } else  {
+                    hysteresisThresholding[y][x] = zero;
+                }
             }
         }
+
+        // Link weak edges to strong edges
+        for(int y = 1; y<height-1; y++){
+            for(int x = 1; x<width-1; x++){
+                if (hysteresisThresholding[y][x] == weak) {
+                    if (Check8Connectivity(hysteresisThresholding, y, x, strong)) {
+                        hysteresisThresholding[y][x] = strong;
+                    } else {
+                        hysteresisThresholding[y][x] = 0;
+                    }
+                }
+            }
+        }
+
+        // then after linking, set all weak edges to 0
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                if (hysteresisThresholding[y][x] == weak) {
+                    hysteresisThresholding[y][x] = 0;
+                }
+            }
+        }
+        return hysteresisThresholding;
     }
 
-    public static BufferedImage createOutputImage(int[][] magnitudeImg){
+    private static boolean Check8Connectivity(int[][] edges, int y, int x, int strongEdge) {
+        for (int ny = y-1; ny < y+1; ny++) {
+            for (int nx = x-1; nx < x+1; nx++) {
+                if (ny == y && nx == x) {
+                    continue;
+                }
+                if (edges[ny][nx] == strongEdge) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static BufferedImage createOutputImage(int[][] magnitudeImg){
         int height = magnitudeImg.length;
         int width = magnitudeImg[0].length;
         BufferedImage outputImage = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
@@ -211,5 +276,45 @@ public class ImageUtils {
             }
         }
         return outputImage;
+    }
+
+    // don't use, results are not great
+    private static int[] calculateHysteresisThresholds(int[][] magnitude) {
+        List<Integer> values = new ArrayList<>();
+        for (int[] row : magnitude) {
+            for (int pixel : row) {
+                if (pixel > 0) {
+                    values.add(pixel);
+                }
+            }
+        }
+        Collections.sort(values);
+
+        int median = values.isEmpty() ? 0 : values.get(values.size()/2);
+        int low = (int) Math.max(0, (1.0 - 0.33) * median);
+        int high = (int) Math.min(255, (1.0 + 0.33) * median);
+        return new int[]{low, high};
+    }
+
+    // master function to output a image reduced to black and white edges
+    public static BufferedImage edgeDetectionImage(File inputImageFile){
+        if (!inputImageFile.exists()) {
+            return null;
+        }
+        double[][] gaussianBlurKernel = GaussianKernelCreate(blurKernelSize, sigma);
+        try {
+            BufferedImage colorImage = ImageIO.read(inputImageFile);
+            int[][] luminosityData = toLuminance(colorImage);
+            int[][] blurData = gaussianBlur(luminosityData, gaussianBlurKernel);
+            GradientResult gradientData = extractGradientMagnitude(blurData);
+            int[][] thinnedImageData = NonMaximumSuppression(gradientData.magnitude, gradientData.direction);
+
+            int[][] edgeData = hysteresisThresholding(thinnedImageData, 35, 80);
+
+            return createOutputImage(edgeData);
+        } catch (IOException e) {
+            System.err.println("Error: Failed to read image file" + e.getMessage());
+            return null;
+        }
     }
 }
