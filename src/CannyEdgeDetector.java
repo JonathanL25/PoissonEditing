@@ -68,12 +68,12 @@ public class CannyEdgeDetector {
             for(int j=0; j<size; j++){
                 int x = i-center;
                 int y = j-center;
-                // Gaussian blur equation;
+                // Gaussian blur equation
                 kernel[i][j] = gaussianCoefficient * Math.exp( -(Math.pow(x, 2)+Math.pow(y, 2))/(2*sigmaSquare));
                 sum+=kernel[i][j];
             }
         }
-        //normalization of the kernel so that all values add up to 1
+        // normalization of the kernel so that all values add up to 1
         for(int i =0; i<size; i++){
             for(int j=0; j<size; j++){
                 kernel[i][j]/=sum;
@@ -202,7 +202,7 @@ public class CannyEdgeDetector {
 
     // hysteresis thresholding
     // uses two thresholds rather than one threshold
-    // find the maximum magnitude, identify what pixels are strong and weak, connect pixes by spreading
+    // find the maximum magnitude, identify what pixels are strong and weak, connect pixels by spreading
     // edge of strong pixels to the neighboring weak pixels
     private static int[][] hysteresisThresholding(int[][] magnitude, int lowThreshold, int highThreshold){
         int width = magnitude[0].length;
@@ -296,7 +296,7 @@ public class CannyEdgeDetector {
         return new int[]{low, high};
     }
 
-    // master function to output a image reduced to black and white edges
+    // master function to output an image reduced to black and white edges
     public static BufferedImage edgeDetectionImage(File inputImageFile){
         if (!inputImageFile.exists()) {
             return null;
